@@ -1,5 +1,7 @@
 # ETF Performance & Economic Dashboard
 
+**Live App:** https://etf-performance-analyzer.streamlit.app/
+
 A Streamlit app for ranking ETFs across multiple time horizons, analyzing individual ETFs, testing historical investments, backtesting portfolios, and monitoring key U.S. economic indicators from FRED.
 
 ## Features
