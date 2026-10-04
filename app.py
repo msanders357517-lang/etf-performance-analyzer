@@ -137,7 +137,7 @@ def fmt_num(v, suffix=""):
 
 @st.cache_data(show_spinner=False)
 def load_universe():
-    df = pd.read_excel("data/ETF_1000.xlsx")
+    df = pd.read_excel("ETF_1000.xlsx")
     df.columns = [str(c).strip() for c in df.columns]
     df["Symbol"] = df["Symbol"].astype(str).str.strip().str.upper()
     df = df[df["Symbol"].notna() & (df["Symbol"] != "") & (df["Symbol"] != "NAN")]
