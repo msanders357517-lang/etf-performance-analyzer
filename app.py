@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 from fredapi import Fred
+from pathlib import Path
 
 st.set_page_config(
     page_title="ETF Performance & Economic Dashboard",
@@ -114,6 +115,14 @@ FRED_SERIES = {
         "series": "HOUST", "unit": "Thousands", "group": "Housing",
         "transform": "yoy", "display_unit": "%",
     },
+    "15-Year Fixed Mortgage Rate": {
+        "series": "MORTGAGE15US", "unit": "%", "group": "Housing",
+        "transform": "level", "display_unit": "%",
+    },
+    "30-Year Fixed Mortgage Rate": {
+        "series": "MORTGAGE30US", "unit": "%", "group": "Housing",
+        "transform": "level", "display_unit": "%",
+    },
 }
 
 # ============================================================
@@ -137,7 +146,20 @@ def fmt_num(v, suffix=""):
 
 @st.cache_data(show_spinner=False)
 def load_universe():
-    df = pd.read_excel("ETF_1000.xlsx")
+    root_file = Path("ETF_1000.xlsx")
+    data_file = Path("data") / "ETF_1000.xlsx"
+
+    if root_file.exists():
+        workbook_path = root_file
+    elif data_file.exists():
+        workbook_path = data_file
+    else:
+        raise FileNotFoundError(
+            "ETF_1000.xlsx was not found. Place it either at the repository root "
+            "or inside a data folder."
+        )
+
+    df = pd.read_excel(workbook_path)
     df.columns = [str(c).strip() for c in df.columns]
     df["Symbol"] = df["Symbol"].astype(str).str.strip().str.upper()
     df = df[df["Symbol"].notna() & (df["Symbol"] != "") & (df["Symbol"] != "NAN")]
@@ -718,7 +740,8 @@ with tabs[4]:
 with tabs[5]:
     st.subheader("U.S. Economic Dashboard")
     st.caption(
-        "Economic data from FRED. Trend arrows compare the latest transformed reading with the prior reading."
+        "Economic data from FRED, including 15-year and 30-year fixed mortgage rates. "
+        "Trend arrows compare the latest transformed reading with the prior reading."
     )
 
     fred_key = get_fred_key()
