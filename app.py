@@ -169,16 +169,6 @@ def load_universe():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Always include WLDU even if it has not yet been added to the workbook.
-    if "WLDU" not in set(df["Symbol"]):
-        extra = {col: np.nan for col in df.columns}
-        extra["Symbol"] = "WLDU"
-        if "Fund Name" in df.columns:
-            extra["Fund Name"] = "Leverage Shares 2x Long World Stock Daily ETF"
-        if "Leverage" in df.columns:
-            extra["Leverage"] = "2x Long"
-        df = pd.concat([df, pd.DataFrame([extra])], ignore_index=True)
-
     if "Assets" in df.columns:
         df = df.sort_values("Assets", ascending=False, na_position="last")
 
@@ -264,70 +254,6 @@ def max_drawdown(s):
     if len(s) < 2:
         return np.nan
     return float((s / s.cummax() - 1).min())
-
-def positive_day_stats(series):
-    """Close-to-close positive/negative/flat day statistics."""
-    s = series.dropna().sort_index()
-    if len(s) < 2:
-        return None
-
-    returns = s.pct_change().dropna()
-    positive = int((returns > 0).sum())
-    negative = int((returns < 0).sum())
-    flat = int((returns == 0).sum())
-    total = int(len(returns))
-
-    return {
-        "Start Date": s.index[0].date(),
-        "End Date": s.index[-1].date(),
-        "Positive Days": positive,
-        "Negative Days": negative,
-        "Flat Days": flat,
-        "Return Days": total,
-        "Positive-Day Rate": positive / total if total else np.nan,
-    }
-
-
-def positive_day_comparison(prices, tickers):
-    """Return own-history and common-period positive-day comparisons."""
-    own_rows = []
-    for ticker in tickers:
-        if ticker not in prices.columns:
-            continue
-        stats = positive_day_stats(prices[ticker])
-        if stats:
-            own_rows.append({"Symbol": ticker, **stats})
-
-    own = pd.DataFrame(own_rows)
-
-    available = [t for t in tickers if t in prices.columns]
-    common_rows = []
-    common_start = None
-    common_end = None
-
-    if len(available) >= 2:
-        aligned = prices[available].dropna(how="any").sort_index()
-        if len(aligned) >= 2:
-            common_start = aligned.index[0].date()
-            common_end = aligned.index[-1].date()
-            rets = aligned.pct_change().dropna()
-
-            for ticker in available:
-                r = rets[ticker]
-                total = int(len(r))
-                common_rows.append({
-                    "Symbol": ticker,
-                    "Start Date": common_start,
-                    "End Date": common_end,
-                    "Positive Days": int((r > 0).sum()),
-                    "Negative Days": int((r < 0).sum()),
-                    "Flat Days": int((r == 0).sum()),
-                    "Return Days": total,
-                    "Positive-Day Rate": float((r > 0).sum() / total) if total else np.nan,
-                })
-
-    common = pd.DataFrame(common_rows)
-    return own, common, common_start, common_end
 
 
 def build_metrics(prices, universe):
@@ -552,8 +478,8 @@ with st.spinner("Loading ETF price history..."):
 
 st.title("📈 ETF Performance & Portfolio Analyzer")
 st.caption(
-    "Rank ETFs across multiple horizons, compare positive trading days, test hypothetical "
-    "investments, backtest portfolios, and review important U.S. economic indicators."
+    "Rank ETFs across multiple horizons, test hypothetical investments, "
+    "backtest portfolios, and review important U.S. economic indicators."
 )
 
 tabs = st.tabs([
@@ -664,75 +590,6 @@ with tabs[1]:
             use_container_width=True,
             column_config={"Return": st.column_config.NumberColumn(format="%.2f%%")},
         )
-
-    st.markdown("---")
-    st.markdown("### Positive-Day Comparison")
-    st.caption(
-        "Positive day = adjusted closing price finished above the prior trading day's "
-        "adjusted close. Use Own History to see each ETF from its available inception, "
-        "and Common Period for a fair same-date comparison."
-    )
-
-    default_compare = [t for t in ["VT", "VOO", "SPY"] if t in universe["Symbol"].tolist()]
-    compare_tickers = st.multiselect(
-        "Compare ETFs",
-        universe["Symbol"].tolist(),
-        default=default_compare,
-        max_selections=6,
-        key="positive_day_tickers",
-    )
-
-    if st.button("Run positive-day comparison", key="run_positive_day_comparison"):
-        if len(compare_tickers) < 2:
-            st.warning("Choose at least two ETFs.")
-        else:
-            with st.spinner("Loading full daily price history..."):
-                compare_prices, compare_failed = fetch_prices(tuple(compare_tickers), "max")
-
-            if compare_prices.empty:
-                st.error("Full price history could not be loaded.")
-            else:
-                own_stats, common_stats, common_start, common_end = positive_day_comparison(
-                    compare_prices, compare_tickers
-                )
-
-                st.markdown("#### Since each ETF's own available inception")
-                if not own_stats.empty:
-                    st.dataframe(
-                        own_stats,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Positive-Day Rate": st.column_config.NumberColumn(format="%.2f%%"),
-                        },
-                    )
-
-                st.markdown("#### Same-date comparison")
-                if not common_stats.empty:
-                    st.caption(
-                        f"Common trading period: {common_start} through {common_end}. "
-                        "This removes the age difference between the ETFs."
-                    )
-                    st.dataframe(
-                        common_stats,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Positive-Day Rate": st.column_config.NumberColumn(format="%.2f%%"),
-                        },
-                    )
-
-                    chart_df = common_stats[["Symbol", "Positive-Day Rate"]].copy()
-                    chart_df["Positive-Day Rate"] = chart_df["Positive-Day Rate"] * 100
-                    st.bar_chart(
-                        chart_df.set_index("Symbol"),
-                        y="Positive-Day Rate",
-                    )
-
-                if compare_failed:
-                    st.warning(
-                        "Price history was unavailable for: " + ", ".join(compare_failed)
-                    )
 
 # ---------------- What If ----------------
 with tabs[2]:
